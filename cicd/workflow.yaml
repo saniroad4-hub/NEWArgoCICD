@@ -1,0 +1,74 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: local-ci-pipeline
+  namespace: cicd
+  labels:
+    app: weather-app
+spec:
+  arguments:
+    parameters:
+    - name: image-name
+      value: weatherlab/weather-app
+    - name: image-tag
+      value: ""
+    - name: environment
+      value: dev
+    - name: namespace
+      value: weather-app
+  entrypoint: main
+  serviceAccountName: argo-workflow
+  templates:
+  - name: main
+    dag:
+      tasks:
+      - name: run-tests
+        templateRef:
+          name: run-tests
+          template: unit-tests
+        arguments:
+          parameters:
+          - name: repo-path
+            value: /home/martin/argoCICD/app
+      - name: build-image
+        templateRef:
+          name: docker-build
+          template: build
+        arguments:
+          parameters:
+          - name: image-name
+            value: '{{workflow.parameters.image-name}}'
+          - name: image-tag
+            value: '{{workflow.parameters.image-tag}}'
+          - name: repo-path
+            value: /home/martin/argoCICD/app
+        dependencies:
+        - run-tests
+      - name: push-image
+        templateRef:
+          name: docker-build
+          template: push
+        arguments:
+          parameters:
+          - name: image-name
+            value: '{{workflow.parameters.image-name}}'
+          - name: image-tag
+            value: '{{workflow.parameters.image-tag}}'
+          - name: registry-url
+            value: docker.io
+        dependencies:
+        - build-image
+      - name: deploy
+        templateRef:
+          name: kubernetes-deploy
+          template: deploy
+        arguments:
+          parameters:
+          - name: image
+            value: '{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}'
+          - name: namespace
+            value: '{{workflow.parameters.namespace}}'
+          - name: deployment-name
+            value: weather-app
+        dependencies:
+        - push-image

@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-local-app
+  namespace: argocd
+  labels:
+    app: weather-app
+    environment: dev
+  annotations:
+    notifications.argoproj.io/subscribe.on-deployed.slack: ""
+spec:
+  project: default
+  source:
+    repoURL: file:///home/martin/argoCICD
+    targetRevision: HEAD
+    path: k8s
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weather-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - PruneLast=true
+  ignoreDifferences:
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+    - /spec/replicas
